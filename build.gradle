@@ -1,0 +1,84 @@
+import java.text.SimpleDateFormat
+
+plugins {
+    id 'java' // need clean task 
+}
+
+def currentVersion = '1.0.0'
+def xplannerVersion = '07b7'
+
+def projectTimeNow = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date())
+
+def env = System.getenv()
+
+ext {
+    if (env['BUILD_TAG'] != null) {
+        //jenkins build
+        buildTag = env['BUILD_TAG']
+        sourceHash = env['GIT_COMMIT'].substring(0, 5)
+        sourceVersion = currentVersion + "-" + projectTimeNow + "-" + sourceHash
+        sourceBranch = env['GIT_BRANCH']
+    } else {
+        buildTag = projectTimeNow + "-local"
+        sourceHash = "local"
+        sourceVersion = "local"
+        sourceBranch = "local"
+    }
+}
+version = currentVersion  + "-" + projectTimeNow + "-" + sourceHash
+if(env['MAKE_RELEASE'] != null && env['MAKE_RELEASE'].equalsIgnoreCase('no')) {
+    version = currentVersion + "-SNAPSHOT"
+}
+
+configurations {
+    xplanner
+}
+
+configurations.all {
+    // Check for updates every build
+    resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
+}
+
+dependencies {
+    xplanner group: 'org.xplanner', name: 'xplanner', version:xplannerVersion, ext: 'war'
+}
+
+repositories {
+    mavenLocal()
+    maven {
+        url "https://ci.fmk.netic.dk/nexus/repository/releases/"
+        mavenContent {
+            releasesOnly()
+        }
+    }
+    maven {
+        url "https://ci.fmk.netic.dk/nexus/repository/trifork-internal/"
+        mavenContent {
+            releasesOnly()
+        }
+    }
+    maven {
+        url "https://ci.fmk.netic.dk/nexus/repository/snapshots/"
+        mavenContent {
+            snapshotsOnly()
+        }
+
+    }
+    ivy {
+        url 'https://ci.fmk.netic.dk/nexus/repository/trifork-internal/'
+        layout "pattern", {
+            artifact '[organisation]/[revision]/[module]-[revision](-[classifier]).[ext]'
+        }
+    }
+}
+
+task copyDependencies(type: Copy) {
+    from configurations.xplanner
+    into 'build/libs'
+
+}
+
+build {
+    dependsOn copyDependencies
+}
+
